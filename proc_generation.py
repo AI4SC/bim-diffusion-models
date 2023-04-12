@@ -17,6 +17,25 @@ def fill_bounds(image, x1, y1, x2, y2, color):
   for i in range(x1, x2 + 1):
     for j in range(y1, y2 + 1):
       image[i, j] = color
+	  
+	  
+def building_size(horizontal_bounds, horizontal_max, vertical_bounds, vertical_max):
+  horizontal_lower_third = horizontal_max / 3
+  horizontal_upper_third = horizontal_max * 2 / 3
+  vertical_lower_third = vertical_max / 3
+  vertical_upper_third = vertical_max * 2 / 3
+  
+  if horizontal_bounds < horizontal_lower_third and vertical_bounds < vertical_lower_third:
+    return "small "
+  elif horizontal_bounds < horizontal_upper_third and vertical_bounds < vertical_upper_third:
+    return ""
+  else:
+    return "large "
+	
+def image_contains_color(image_array, tolerance=0):
+    diff = np.abs(image_array[..., :-1] - image_array[..., 1:])
+    max_diff = np.max(diff, axis=-1)
+    return np.any(max_diff > tolerance)
 
 
 def scale_image_nn(image_array, scale_factor):
@@ -70,6 +89,7 @@ def replace_rectangles(image_array, color, replacement_image, x_size, y_size,
 
   # Replace each rectangular area with the replacement image
   # Flip the replacement image with the given chance
+  replacements = 0
   for x, y in rectangles:
     if random.random() < flip_chance:
       if up_down:
@@ -85,13 +105,14 @@ def replace_rectangles(image_array, color, replacement_image, x_size, y_size,
     else:
       windows_array = np.array(windows_img)
       image_array[y:y + y_size, x:x + x_size] = windows_array
+    replacements += 1
 
-  return image_array
+  return replacements
 
 
 ###############################
 ### 0. Procedural generation configuration ###
-number_of_generations = 100
+number_of_generations = 5
 ##Canvas
 min_height = 60
 max_height = 120
@@ -385,13 +406,35 @@ for img_nr in range(0, number_of_generations):
   scaled_img = scale_image_nn(img, scale_factor)
   #plt.imsave("generations/gen" + str(img_nr) + "_orig.png", scaled_img)
   #Replace windows
-  replace_rectangles(scaled_img, horizontal_window_color, "symbology/window_horizontal.png", 120, 30, 0, False, 0)
-  replace_rectangles(scaled_img, vertical_window_color, "symbology/window_vertical.png", 30, 120, 0, True, 0)
+  windows = 0
+  windows += replace_rectangles(scaled_img, horizontal_window_color, "symbology/window_horizontal.png", 120, 30, 0, False, 0)
+  windows += replace_rectangles(scaled_img, vertical_window_color, "symbology/window_vertical.png", 30, 120, 0, True, 0)
   #Replace door
-  replace_rectangles(scaled_img, horizontal_door_color, "symbology/door_horizontal.png", 120, 120, 0.5, True, scale_factor)
-  replace_rectangles(scaled_img, vertical_door_color, "symbology/door_vertical.png", 120, 120, 0.5, False, scale_factor)
+  doors = 0
+  doors += replace_rectangles(scaled_img, horizontal_door_color, "symbology/door_horizontal.png", 120, 120, 0.5, True, scale_factor)
+  doors += replace_rectangles(scaled_img, vertical_door_color, "symbology/door_vertical.png", 120, 120, 0.5, False, scale_factor)
+  
+  #Create description
+  #Base
+  desc = "floor plan of " + building_size(bounds_width, max_width, bounds_height, max_height) + "building"
+  #Rooms
+  desc += ", " + str(len(rooms)) + " rooms"
+  #Windows
+  if windows > 12:
+    windows = "many"
+  desc += ", " + str(windows) + " windows"
+  #Doors
+  if doors > 7:
+    doors = "many"
+  desc += ", " + str(doors) + " doors"
+  #Deleted rooms
+  if(len(delete_list) > 0):
+    desc += ", with courtyard"
   
   #Final output
   print("Image generated. Saving...")
-  plt.imsave("generations/gen" + str(img_nr) + ".png", scaled_img)
-  print("Saved!")
+  if not image_contains_color(scaled_img):
+    plt.imsave("generations/" + str(random.randint(0, 999999)) + "-" + desc + ".png", scaled_img)
+    print("Saved!")
+  else:
+    print("Not saved, image had color.")
