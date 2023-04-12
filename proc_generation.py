@@ -112,7 +112,7 @@ def replace_rectangles(image_array, color, replacement_image, x_size, y_size,
 
 ###############################
 ### 0. Procedural generation configuration ###
-number_of_generations = 5
+number_of_generations = 40
 ##Canvas
 min_height = 60
 max_height = 120
@@ -141,6 +141,7 @@ vertical_window_color = [0, 255, 255]
 ##Don't alter
 scale_factor = 30
 
+successfull_generations = 0
 for img_nr in range(0, number_of_generations):
   #########################################################
   ### 1. Generate and draw basic bounds of the building ###
@@ -434,7 +435,11 @@ for img_nr in range(0, number_of_generations):
   #Final output
   print("Image generated. Saving...")
   if not image_contains_color(scaled_img):
-    plt.imsave("generations/" + str(random.randint(0, 999999)) + "-" + desc + ".png", scaled_img)
+    #plt.imsave("generations/" + str(random.randint(0, 999999)) + "-" + desc + ".png", scaled_img)
+    plt.imsave("generations/hype"+str(successfull_generations)+".png", scaled_img)
+    with open("generations/hype"+str(successfull_generations)+".txt", 'w') as f:
+      f.write(desc)
+    successfull_generations += 1
     print("Saved!")
   else:
     print("Not saved, image had color.")
