@@ -70,7 +70,7 @@ def scale_image_nn(image_array, scale_factor):
 def replace_rectangles(image_array, color, replacement_image, x_size, y_size,
                        flip_chance, up_down, scale_factor):
   windows_img = Image.open(replacement_image)
-  if img.shape[2] == 3:
+  if image_array.shape[2] == 3:
     windows_img = windows_img.convert('RGB')
   else:
     windows_img = windows_img.convert('RGBA')
@@ -91,28 +91,51 @@ def replace_rectangles(image_array, color, replacement_image, x_size, y_size,
   # Flip the replacement image with the given chance
   replacements = 0
   for x, y in rectangles:
+    y_start, x_start = y, x
+    
     if random.random() < flip_chance:
       if up_down:
         windows_img_t = windows_img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
         windows_array = np.array(windows_img_t)
-        image_array[y - y_size + scale_factor:y + scale_factor,
-                    x:x + x_size] = windows_array
+        y_start = y - y_size + scale_factor
       else:
         windows_img_t = windows_img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
         windows_array = np.array(windows_img_t)
-        image_array[y:y + y_size,
-                    x - x_size + scale_factor:x + scale_factor] = windows_array
+        x_start = x - x_size + scale_factor
     else:
       windows_array = np.array(windows_img)
-      image_array[y:y + y_size, x:x + x_size] = windows_array
+
+    black_pixels_mask = np.all(windows_array == [0, 0, 0], axis=-1)
+    black_pixels_mask_expanded = np.expand_dims(black_pixels_mask, axis=-1)
+
+    inside_rectangle_mask = np.zeros_like(mask, dtype=bool)
+    inside_rectangle_mask[y_start:y_start + y_size, x_start:x_start + x_size] = True
+
+    combined_mask = black_pixels_mask_expanded & inside_rectangle_mask[y_start:y_start + y_size, x_start:x_start + x_size, np.newaxis]
+
+    image_array[y_start:y_start + y_size, x_start:x_start + x_size][np.repeat(combined_mask, image_array.shape[2], axis=-1)] = windows_array[np.repeat(combined_mask, image_array.shape[2], axis=-1)]
+
+    # Replace the detected rectangles with the replacement_image
+    mask_expanded = np.expand_dims(mask, axis=-1)
+    image_array[y_start:y_start + y_size, x_start:x_start + x_size][np.repeat(mask_expanded[y_start:y_start + y_size, x_start:x_start + x_size], image_array.shape[2], axis=-1)] = windows_array[np.repeat(mask_expanded[y_start:y_start + y_size, x_start:x_start + x_size], image_array.shape[2], axis=-1)]
+
     replacements += 1
 
   return replacements
 
+def replace_color(np_image, old_color, new_color):
+    # Create a boolean mask that is True where the old_color is found in the image
+    color_mask = np.all(np_image == old_color, axis=-1)
+
+    # Replace old_color with new_color using the mask
+    np_image[color_mask] = new_color
+
+    return np_image
+
 
 ###############################
 ### 0. Procedural generation configuration ###
-number_of_generations = 40
+number_of_generations = 6
 ##Canvas
 min_height = 60
 max_height = 120
@@ -403,17 +426,39 @@ for img_nr in range(0, number_of_generations):
                        (e[0][0] + (e[1] // 4) * 3) + window_size // 2):
           img[i, e[0][1]] = vertical_window_color
 
-  #Scale image
-  scaled_img = scale_image_nn(img, scale_factor)
-  #plt.imsave("generations/gen" + str(img_nr) + "_orig.png", scaled_img)
-  #Replace windows
+  #Recolor rooms
+  room_img = np.copy(img)
+  for r in rooms:
+    fill_bounds(room_img, r.x1, r.y1 + 1, r.x2 - 1, r.y2, r.color)
+  
+  #Prepare scaled images for all four versions
+  cont_img = scale_image_nn(img, scale_factor)
+  cont_room_img = scale_image_nn(room_img, scale_factor)
+  symb_img = np.copy(cont_img)
+  symb_room_img = np.copy(cont_room_img)
+
+ 
+  ###############################
+  ### 6. Apply plan symbology ###
+
+  replace_color(cont_img, vertical_door_color, horizontal_door_color)
+  replace_color(cont_img, vertical_window_color, horizontal_window_color)
+  replace_color(cont_room_img, vertical_door_color, horizontal_door_color)
+  replace_color(cont_room_img, vertical_window_color, horizontal_window_color)
+
+  #Replace windows in both symbology plans
   windows = 0
-  windows += replace_rectangles(scaled_img, horizontal_window_color, "symbology/window_horizontal.png", 120, 30, 0, False, 0)
-  windows += replace_rectangles(scaled_img, vertical_window_color, "symbology/window_vertical.png", 30, 120, 0, True, 0)
-  #Replace door
+  windows += replace_rectangles(symb_img, horizontal_window_color, "symbology/window_horizontal.png", 120, 30, 0, False, 0)
+  windows += replace_rectangles(symb_img, vertical_window_color, "symbology/window_vertical.png", 30, 120, 0, True, 0)
+  replace_rectangles(symb_room_img, horizontal_window_color, "symbology/window_horizontal.png", 120, 30, 0, False, 0)
+  replace_rectangles(symb_room_img, vertical_window_color, "symbology/window_vertical.png", 30, 120, 0, True, 0)
+  
+  #Replace doors in both symbology plans
   doors = 0
-  doors += replace_rectangles(scaled_img, horizontal_door_color, "symbology/door_horizontal.png", 120, 120, 0.5, True, scale_factor)
-  doors += replace_rectangles(scaled_img, vertical_door_color, "symbology/door_vertical.png", 120, 120, 0.5, False, scale_factor)
+  doors += replace_rectangles(symb_img, horizontal_door_color, "symbology/door_horizontal.png", 120, 120, 0.5, True, scale_factor)
+  doors += replace_rectangles(symb_img, vertical_door_color, "symbology/door_vertical.png", 120, 120, 0.5, False, scale_factor)
+  replace_rectangles(symb_room_img, horizontal_door_color, "symbology/door_horizontal.png", 120, 120, 0.5, True, scale_factor)
+  replace_rectangles(symb_room_img, vertical_door_color, "symbology/door_vertical.png", 120, 120, 0.5, False, scale_factor)
   
   #Create description
   #Base
@@ -429,17 +474,27 @@ for img_nr in range(0, number_of_generations):
     doors = "many"
   desc += ", " + str(doors) + " doors"
   #Deleted rooms
-  if(len(delete_list) > 0):
-    desc += ", with courtyard"
+  #if(len(delete_list) > 0):
+  #  desc += ", with courtyard"
   
   #Final output
   print("Image generated. Saving...")
-  if not image_contains_color(scaled_img):
+  #Check if the image with symbology has colors or not. If it has, something went wrong.
+  if not image_contains_color(symb_img):
     #plt.imsave("generations/" + str(random.randint(0, 999999)) + "-" + desc + ".png", scaled_img)
-    plt.imsave("generations/hype"+str(successfull_generations)+".png", scaled_img)
-    with open("generations/hype"+str(successfull_generations)+".txt", 'w') as f:
+    plt.imsave("generations/symb/symb"+str(successfull_generations)+".png", symb_img)
+    plt.imsave("generations/cont/cont"+str(successfull_generations)+".png", cont_img)
+    plt.imsave("generations/symb_room/symb_room"+str(successfull_generations)+".png", symb_room_img)
+    plt.imsave("generations/cont_room/cont_room"+str(successfull_generations)+".png", cont_room_img)	
+    with open("generations/cont/cont"+str(successfull_generations)+".txt", 'w') as f:
+      f.write(desc)
+    with open("generations/symb/symb"+str(successfull_generations)+".txt", 'w') as f:
+      f.write(desc)
+    with open("generations/cont_room/cont_room"+str(successfull_generations)+".txt", 'w') as f:
+      f.write(desc)
+    with open("generations/symb_room/symb_room"+str(successfull_generations)+".txt", 'w') as f:
       f.write(desc)
     successfull_generations += 1
-    print("Saved!")
+    print("Four images and description saved as number " + str(successfull_generations))
   else:
-    print("Not saved, image had color.")
+    print("Not saved, the symbology image had color.")
