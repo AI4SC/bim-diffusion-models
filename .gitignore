@@ -1,5 +1,8 @@
 #Image generations
-generations/*
+generations/cont/*
+generations/cont_room/*
+generations/symb/*
+generations/symb_room/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
