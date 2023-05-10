@@ -132,10 +132,38 @@ def replace_color(np_image, old_color, new_color):
 
     return np_image
 
+def create_description(size, kitchen, bath, rooms, windows, doors, room_semantics):
+  #Create description
+  #Base
+  desc = "floor plan of " + size + "building"
+  #Rooms
+  desc += ", with "
+  if room_semantics:
+    if kitchen > 0:
+      desc += str(kitchen) + " kitchens, "
+    if bath > 0:
+      desc += str(bath) + " bathrooms, "
+    desc += str(rooms) + " rooms"
+  else:
+    desc += str(rooms + kitchen + bath) + " rooms"
+  
+  #Windows
+  if windows > 12:
+    windows = "many"
+  desc += ", " + str(windows) + " windows"
+  #Doors
+  if doors > 7:
+    doors = "many"
+  desc += ", " + str(doors) + " doors"
+  #Deleted rooms
+  #if(len(delete_list) > 0):
+  #  desc += ", with courtyard"
+  return desc
+
 
 ###############################
 ### 0. Procedural generation configuration ###
-number_of_generations = 6
+number_of_generations = 100
 ##Canvas
 min_height = 60
 max_height = 120
@@ -161,6 +189,9 @@ horizontal_door_color = [255, 0, 0]
 vertical_door_color = [255, 255, 0]
 horizontal_window_color = [0, 0, 255]
 vertical_window_color = [0, 255, 255]
+bath_color = [0,250,250]
+kitchen_color = [250,0,250]
+living_color = [250,250,0]
 ##Don't alter
 scale_factor = 30
 
@@ -426,6 +457,33 @@ for img_nr in range(0, number_of_generations):
                        (e[0][0] + (e[1] // 4) * 3) + window_size // 2):
           img[i, e[0][1]] = vertical_window_color
 
+
+  ###############################
+  ### 6. Find room semantics ###
+
+  #Sort rooms by size through lambda expression
+  sorted_rooms = sorted(rooms, key=lambda r: (r.x2 - r.x1) * (r.y2 - r.y1) )
+
+  #Give a chance for a room to be a special room, otherwise they are just living rooms
+  bath_nr = 0
+  bath_chance = 50
+  kitchen_nr = 0
+  kitchen_chance = 50
+  for r in sorted_rooms:
+    if random.randint(0,100) < bath_chance:
+      r.color = bath_color
+      bath_nr += 1
+      bath_chance = 5
+    elif random.randint(0,100) < kitchen_chance:
+      r.color = kitchen_color
+      kitchen_nr += 1
+      kitchen_chance = 5
+    else:
+      r.color = living_color
+ 
+  ###############################
+  ### 7. Apply plan symbology ###
+  
   #Recolor rooms
   room_img = np.copy(img)
   for r in rooms:
@@ -436,10 +494,6 @@ for img_nr in range(0, number_of_generations):
   cont_room_img = scale_image_nn(room_img, scale_factor)
   symb_img = np.copy(cont_img)
   symb_room_img = np.copy(cont_room_img)
-
- 
-  ###############################
-  ### 6. Apply plan symbology ###
 
   replace_color(cont_img, vertical_door_color, horizontal_door_color)
   replace_color(cont_img, vertical_window_color, horizontal_window_color)
@@ -460,22 +514,8 @@ for img_nr in range(0, number_of_generations):
   replace_rectangles(symb_room_img, horizontal_door_color, "symbology/door_horizontal.png", 120, 120, 0.5, True, scale_factor)
   replace_rectangles(symb_room_img, vertical_door_color, "symbology/door_vertical.png", 120, 120, 0.5, False, scale_factor)
   
-  #Create description
-  #Base
-  desc = "floor plan of " + building_size(bounds_width, max_width, bounds_height, max_height) + "building"
-  #Rooms
-  desc += ", " + str(len(rooms)) + " rooms"
-  #Windows
-  if windows > 12:
-    windows = "many"
-  desc += ", " + str(windows) + " windows"
-  #Doors
-  if doors > 7:
-    doors = "many"
-  desc += ", " + str(doors) + " doors"
-  #Deleted rooms
-  #if(len(delete_list) > 0):
-  #  desc += ", with courtyard"
+  desc = create_description(building_size(bounds_width, max_width, bounds_height, max_height), kitchen_nr, bath_nr, len(rooms)-kitchen_nr-bath_nr, windows, doors, False)
+  semantic_desc = create_description(building_size(bounds_width, max_width, bounds_height, max_height), kitchen_nr, bath_nr, len(rooms)-kitchen_nr-bath_nr, windows, doors, True)
   
   #Final output
   print("Image generated. Saving...")
@@ -491,9 +531,9 @@ for img_nr in range(0, number_of_generations):
     with open("generations/symb/symb"+str(successfull_generations)+".txt", 'w') as f:
       f.write(desc)
     with open("generations/cont_room/cont_room"+str(successfull_generations)+".txt", 'w') as f:
-      f.write(desc)
+      f.write(semantic_desc)
     with open("generations/symb_room/symb_room"+str(successfull_generations)+".txt", 'w') as f:
-      f.write(desc)
+      f.write(semantic_desc)
     successfull_generations += 1
     print("Four images and description saved as number " + str(successfull_generations))
   else:
