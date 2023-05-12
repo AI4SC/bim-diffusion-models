@@ -132,32 +132,68 @@ def replace_color(np_image, old_color, new_color):
 
     return np_image
 
-def create_description(size, kitchen, bath, rooms, windows, doors, room_semantics):
-  #Create description
-  #Base
-  desc = "floor plan of " + size + "building"
-  #Rooms
-  desc += ", with "
+def create_description(size, kitchen, bath, rooms, windows, doors, room_semantics, symbology):
+  #Set colors
   if room_semantics:
-    if kitchen > 0:
-      desc += str(kitchen) + " kitchens, "
-    if bath > 0:
-      desc += str(bath) + " bathrooms, "
-    desc += str(rooms) + " rooms"
+    kc = kitchen_color_name
+    bc = bath_color_name
+    lc = living_color_name
+    wc = window_color_name
+    dc = door_color_name
   else:
-    desc += str(rooms + kitchen + bath) + " rooms"
-  
+    kc = "white"
+    bc = "white"
+    lc = "white"
+  if symbology:
+    wc = "symbols"
+    dc = "symbols"
+  else:
+    wc = window_color_name
+    dc = door_color_name
+  #Base
+  desc = "(floor plan of a " + size + " building with black walls), "
+  #Rooms
+  #Kitchens
+  if kitchen > 6:
+    desc += "(many "
+  elif kitchen > 0:
+    desc += "(few "
+  else:
+    desc += "(no "
+  desc += str(kitchen) + " kitchens " + kc + "), "
+  #Baths
+  if bath > 6:
+    desc += "(many "
+  elif bath > 0:
+    desc += "(few "
+  else:
+    desc += "(no "
+  desc += str(bath) + " bathrooms " + bc + "), "
+  #Rooms
+  if rooms > 6:
+    desc += "(many "
+  elif rooms > 0:
+    desc += "(few "
+  else:
+    desc += "(no "
+  desc += str(rooms) + " rooms " + lc + "), "
   #Windows
-  if windows > 12:
-    windows = "many"
-  desc += ", " + str(windows) + " windows"
+  if windows > 6:
+    desc += "(many "
+  elif windows > 0:
+    desc += "(few "
+  else:
+    desc += "(no "
+  desc += str(windows) + " windows " + wc + "), "
   #Doors
-  if doors > 7:
-    doors = "many"
-  desc += ", " + str(doors) + " doors"
-  #Deleted rooms
-  #if(len(delete_list) > 0):
-  #  desc += ", with courtyard"
+  if doors > 6:
+    desc += "(many "
+  elif doors > 0:
+    desc += "(few "
+  else:
+    desc += "(no "
+  desc += str(doors) + " doors " + dc + ") "
+
   return desc
 
 
@@ -189,14 +225,19 @@ horizontal_door_color = [255, 0, 0]
 vertical_door_color = [255, 255, 0]
 horizontal_window_color = [0, 0, 255]
 vertical_window_color = [0, 255, 255]
+door_color_name = "red"
+window_color_name = "blue"
 bath_color = [0,250,250]
+bath_color_name = "cyan"
 kitchen_color = [250,0,250]
+kitchen_color_name = "magenta"
 living_color = [250,250,0]
+living_color_name = "yellow"
 ##Don't alter
 scale_factor = 30
 
 successfull_generations = 0
-for img_nr in range(0, number_of_generations):
+while successfull_generations < number_of_generations:
   #########################################################
   ### 1. Generate and draw basic bounds of the building ###
 
@@ -514,9 +555,10 @@ for img_nr in range(0, number_of_generations):
   replace_rectangles(symb_room_img, horizontal_door_color, "symbology/door_horizontal.png", 120, 120, 0.5, True, scale_factor)
   replace_rectangles(symb_room_img, vertical_door_color, "symbology/door_vertical.png", 120, 120, 0.5, False, scale_factor)
   
-  desc = create_description(building_size(bounds_width, max_width, bounds_height, max_height), kitchen_nr, bath_nr, len(rooms)-kitchen_nr-bath_nr, windows, doors, False)
-  semantic_desc = create_description(building_size(bounds_width, max_width, bounds_height, max_height), kitchen_nr, bath_nr, len(rooms)-kitchen_nr-bath_nr, windows, doors, True)
-  
+  desc = create_description(building_size(bounds_width, max_width, bounds_height, max_height), kitchen_nr, bath_nr, len(rooms)-kitchen_nr-bath_nr, windows, doors, False, False)
+  desc_symb = create_description(building_size(bounds_width, max_width, bounds_height, max_height), kitchen_nr, bath_nr, len(rooms)-kitchen_nr-bath_nr, windows, doors, False, True)
+  semantic_desc = create_description(building_size(bounds_width, max_width, bounds_height, max_height), kitchen_nr, bath_nr, len(rooms)-kitchen_nr-bath_nr, windows, doors, True, False)
+  semantic_desc_symb = create_description(building_size(bounds_width, max_width, bounds_height, max_height), kitchen_nr, bath_nr, len(rooms)-kitchen_nr-bath_nr, windows, doors, True, True)
   #Final output
   print("Image generated. Saving...")
   #Check if the image with symbology has colors or not. If it has, something went wrong.
@@ -529,11 +571,11 @@ for img_nr in range(0, number_of_generations):
     with open("generations/cont/cont"+str(successfull_generations)+".txt", 'w') as f:
       f.write(desc)
     with open("generations/symb/symb"+str(successfull_generations)+".txt", 'w') as f:
-      f.write(desc)
+      f.write(desc_symb)
     with open("generations/cont_room/cont_room"+str(successfull_generations)+".txt", 'w') as f:
       f.write(semantic_desc)
     with open("generations/symb_room/symb_room"+str(successfull_generations)+".txt", 'w') as f:
-      f.write(semantic_desc)
+      f.write(semantic_desc_symb)
     successfull_generations += 1
     print("Four images and description saved as number " + str(successfull_generations))
   else:
