@@ -40,7 +40,7 @@ such as the general shape of the building (e.g. l-shape, o-shape, etc.).
 
 ```bibtex
 @article{ploennigs2024diffusion,
-  title={Diffusion models for computational design at the example of floor plans},
+  title={Automating Computational Design with Generative AI},
   author={Ploennigs, Joern and Berger, Markus},
   journal={Civil Engineering Design},
   note={arXiv preprint arXiv:2307.02511},
